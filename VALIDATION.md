@@ -6,7 +6,7 @@ Validated on Windows with Python **3.12.12** on **2026-10-03**.
 
 | Check | Result |
 | --- | --- |
-| `python -m pytest -q` | **623 passed** |
+| `python -m pytest -q` | **630 passed** |
 | `python -m ruff check src tests scripts` | Passed |
 | `uv build --wheel --offline` | Passed |
 | `python scripts/check_wheel.py` | Required modules, defaults, icons and three sound files present |
@@ -14,6 +14,8 @@ Validated on Windows with Python **3.12.12** on **2026-10-03**.
 The tests cover pipeline transitions, cancellation, retries, optional Codex refinement, local CLI readiness, Unicode clipboard failure recovery, recording and paste shortcut isolation, embedded Settings and rollback, sound event ordering, and bounded shutdown. Session-history coverage includes its 30-message limit, immutable Unicode snapshots, cancellation/failure exclusion, explicit recopy, busy guards, selection removal, notification isolation and shutdown clearing. Tests use simulated audio, hooks, clipboard and process adapters rather than recording or pasting into another application.
 
 The 0.2.0 interface also passed a real hidden Tk check: same-root navigation, read-only Unicode history preview, explicit recopy/clear, Settings returning to History, resize operations, processing-indicator transitions and shutdown cleanup. Device, clipboard, sound, Codex and tray adapters were simulated in that check. A separate Pythonw demo initialized the actual window/tray and exited with code 0 after automatic close; no recording, clipboard replacement or refinement ran.
+
+The 0.2.1 close behavior passed a real hidden Tk check through the registered window-close callback: X withdrew the window while a simulated transcription remained active, completion and session history still updated, and explicit Quit alone removed the tray and shut down. Unit tests also cover pending/unavailable tray fallback, restoring the window, leaving Settings before hiding and keeping cleanup errors visible. All audio, clipboard, sound and tray output in this check was simulated.
 
 Prior native Windows checks also initialized the real Tk window, edited and saved Settings in that same window, invoked tray notification APIs, and verified Pythonw shutdown with a blocked preparation worker. The desktop was locked, so visible notification delivery and physical focus behavior were not assessed.
 
@@ -30,7 +32,7 @@ On **2026-10-02**, the same 11.578-second synthetic Portuguese sentence and cach
 
 The production adapter was checked separately: 9.959 seconds to prepare the model, 2.689 seconds for the first transcription and 1.199 seconds on reuse. It retained the loaded model between requests. These measurements exclude Codex refinement and use synthetic speech, not a physical microphone or a recognition-accuracy benchmark. Actual times depend on the model, recording and machine.
 
-The earlier retained app processes were identified and closed. Current shutdown removes the tray, closes input hooks and waits briefly for workers; the CLI exits its own process if a native inference call is still running.
+The earlier retained app processes were identified and closed. Explicit Quit removes the tray, closes input hooks and waits briefly for workers; the CLI exits its own process if a native inference call is still running. In 0.2.1, X/Minimize instead keep the app running and preserve processing, shortcuts and session history. A ready tray receives the hidden window; an unavailable or pending tray uses taskbar minimization so the app remains reachable.
 
 ## Manual checks still needed
 
@@ -38,6 +40,7 @@ The earlier retained app processes were identified and closed. Current shutdown 
 - Try recording and paste shortcuts with the actual keyboard, mouse and driver mappings in the destination application.
 - Confirm that start, stop and ready cues are audible at the preferred Windows volume.
 - Check visible Windows notifications with the machine's notification settings.
+- Close with X during processing, reopen through the tray, and confirm the message and history remain available; choose Quit to fully exit.
 - Exercise the complete spoken-message-to-refinement-to-clipboard workflow with the configured Codex account.
 
 Native model loading/inference cannot be interrupted immediately mid-call. Cancel suppresses late results; Quit closes the application and releases its resources. Clipboard replacement attempts to restore prior Unicode text after a native write failure, but Windows offers no atomic transaction and rich-text/image formats are not snapshotted.

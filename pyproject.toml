@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "voice-to-me"
-version = "0.2.0"
+version = "0.2.1"
 description = "Windows voice dictation with local Whisper, optional Codex CLI refinement and accessible shortcuts."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"

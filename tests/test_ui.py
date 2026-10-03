@@ -193,10 +193,89 @@ def test_native_stage_notifications_do_not_include_private_backend_details(ui, s
     ui._tray.notify.assert_called_once()
 
 
-def test_minimize_keeps_standard_taskbar_access(ui):
+def test_window_close_routes_to_tray_minimization_without_quitting(ui, monkeypatch):
+    root = ui.root
+    root.winfo_screenheight.return_value = 1080
+    monkeypatch.setattr("voice_to_me.ui.tk.Tk", lambda: root)
+    monkeypatch.setattr(ui, "_build_window", Mock())
+    monkeypatch.setattr(ui, "_start_tray", Mock())
     ui._tray = Mock(visible=True)
+    ui.run()
+    name, close = root.protocol.call_args.args
+    assert name == "WM_DELETE_WINDOW"
+    close()
+    root.withdraw.assert_called_once_with()
+    root.destroy.assert_not_called()
+    ui.controller.shutdown.assert_not_called()
+    assert not ui._quitting
+
+
+def test_hide_preserves_processing_history_and_dispatches_completion(ui):
+    ui._tray = Mock(visible=True)
+    snapshot = (history_entry(),)
+    ui._history_page = Mock()
+    ui._history_entries = snapshot
+    ui._state = "transcribing"
+    ui.controller.is_busy = True
+    ui._hide_window()
+    ui._root.withdraw.assert_called_once_with()
+    ui._root.iconify.assert_not_called()
+    assert ui._history_entries == snapshot and not ui._quitting
+    ui.controller.shutdown.assert_not_called()
+    ui._sounds.close.assert_not_called()
+    ui._tray.stop.assert_not_called()
+    ui._root.destroy.assert_not_called()
+    ui.publish("copied", "Text copied.")
+    ui.publish_sound("ready")
+    ui.controller.is_busy = False
+    ui._drain_events()
+    assert ui._state == "copied" and ui._history_entries == snapshot
+    ui._sounds.ready.assert_called_once_with()
+    ui._tray.notify.assert_called_once_with(NOTIFICATIONS["copied"],
+                                            "Voice to Me · Copied to clipboard")
+    ui._show_window()
+    ui._root.deiconify.assert_called_once_with()
+
+
+@pytest.mark.parametrize("tray", [None, Mock(visible=False)])
+def test_missing_or_starting_tray_keeps_standard_taskbar_access(ui, tray):
+    ui._tray = tray
     ui._hide_window()
     ui._root.iconify.assert_called_once_with()
+    ui._root.withdraw.assert_not_called()
+    ui.controller.shutdown.assert_not_called()
+
+
+def test_tray_visibility_failure_keeps_app_reachable(ui):
+    from unittest.mock import PropertyMock
+
+    ui._tray = Mock()
+    type(ui._tray).visible = PropertyMock(side_effect=OSError("Tray unavailable"))
+    ui._hide_window()
+    ui._root.iconify.assert_called_once_with()
+    ui._root.withdraw.assert_not_called()
+
+
+@pytest.mark.parametrize("closed", [False, True])
+def test_hide_exits_settings_before_hiding_and_preserves_cleanup_errors(ui, closed):
+    ui._tray = Mock(visible=True)
+    ui._settings_dialog = Mock(is_open=True)
+    ui._settings_dialog.close.return_value = closed
+    calls = Mock()
+    calls.attach_mock(ui._settings_dialog, "settings")
+    calls.attach_mock(ui._root, "root")
+    ui._hide_window()
+    assert [call[0] for call in calls.mock_calls] == (
+        ["settings.close", "root.withdraw"] if closed else ["settings.close"]
+    )
+    ui.controller.shutdown.assert_not_called()
+    assert not ui._quitting
+
+
+def test_hide_after_quit_does_not_touch_destroyed_window(ui):
+    ui._quitting = True
+    ui._hide_window()
+    ui._root.iconify.assert_not_called()
     ui._root.withdraw.assert_not_called()
 
 

@@ -38,7 +38,13 @@ Paste supports one key, optionally with Ctrl/Alt/Shift/Win, or any standard mous
 
 Press once to record, speak naturally, then press again to stop. The completion chime confirms that text is on the clipboard. Focus your destination text field and activate the separate paste shortcut. Sending remains a manual action in that application.
 
-Busy processing ignores additional recording toggles. **Cancel** discards the pending result; **Try again** reuses retained audio or transcription after a failure. A new recording replaces this retry buffer. Closing the app removes the tray, stops hooks and cancels pending paste work.
+Busy processing ignores additional recording toggles. **Cancel** discards the pending result; **Try again** reuses retained audio or transcription after a failure. A new recording replaces this retry buffer.
+
+Click **X** or **Minimize** to hide Voice to Me to the Windows tray. The app stays running: recording and processing continue, configured shortcuts remain available, and session history is preserved. Use the tray menu's **Open Voice to Me** to return. If the tray is unavailable or not ready yet, the window minimizes to the taskbar instead, keeping it reachable.
+
+When Settings is open, X/Minimize discard unsaved changes just like **Back/Cancel**, then resume the configured shortcuts.
+
+To exit, choose **Quit** in the window or tray menu. Quit removes the tray icon, stops input hooks, cancels pending paste work, releases resources and clears session history.
 
 Navigate between **Dictation**, **History** and **Settings** inside the same window. History lists the last 30 successfully copied messages with timestamps and their refinement mode. Select one to read its full text and use **Copy text** to recover it. Copy and clear wait until the current operation is finished. History is held only for this session and disappears on Quit; **Clear history** removes it sooner.
 

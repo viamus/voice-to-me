@@ -64,7 +64,13 @@ The default recording shortcut is **Ctrl + Alt + Space**. A useful mouse setup i
 
 **Settings** replaces the main page inside the same window. Capture a keyboard shortcut or mouse button for each action, edit your writing style, select **Fast**, **Balanced** or **Best quality** transcription, and enable or disable Codex refinement. **Save & Apply** activates changes immediately. **Back/Cancel** discard edits.
 
-Recording and paste shortcuts are paused while editing. The app rejects conflicting bindings. **Minimize** keeps Voice to Me available; closing the window or choosing **Quit** exits and removes its tray icon, including during processing.
+Recording and paste shortcuts are paused while editing. The app rejects conflicting bindings.
+
+**X** and **Minimize** hide the window to the Windows tray when the tray icon is ready. Recording, processing, configured shortcuts and session history remain active. Choose **Open Voice to Me** in the tray menu to bring the window back. If the tray is unavailable or still starting, the window minimizes to the taskbar so you can still reach it.
+
+If Settings is open, X/Minimize discard unsaved edits like **Back/Cancel** and resume the configured shortcuts.
+
+Choose **Quit** in the window or tray menu to exit, remove the tray icon, release resources and clear session history, including during processing.
 
 ![Built-in Settings illustration](src/voice_to_me/assets/settings-preview.png)
 

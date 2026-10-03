@@ -151,7 +151,7 @@ class VoiceUI:
         self._root.option_add("*Font", "{Segoe UI} 11")
         if (ASSETS / "voiceui.ico").exists():
             self._root.iconbitmap(str(ASSETS / "voiceui.ico"))
-        self._root.protocol("WM_DELETE_WINDOW", self._quit)
+        self._root.protocol("WM_DELETE_WINDOW", self._hide_window)
         self._root.bind("<Alt-r>", lambda _event: self._toggle())
         self._root.bind("<Escape>", lambda _event: self._cancel())
         self._root.bind("<Control-s>", lambda _event: self._save_settings())
@@ -684,8 +684,21 @@ class VoiceUI:
         self._root.focus_force()
 
     def _hide_window(self) -> None:
-        assert self._root is not None
-        self._root.iconify()
+        if self._quitting or self._root is None:
+            return
+        # Leave editing as Back/Cancel would, so global shortcuts work while
+        # hidden. Failed capture/shortcut cleanup keeps its error reachable.
+        if self._settings_open() and not self._settings_dialog.close():
+            return
+        try:
+            tray_visible = self._tray is not None and self._tray.visible
+        except (OSError, RuntimeError):
+            tray_visible = False
+        if tray_visible:
+            self._root.withdraw()
+        else:
+            # A missing or still-starting tray must not make the app unreachable.
+            self._root.iconify()
 
     def _start_tray(self) -> None:
         try:

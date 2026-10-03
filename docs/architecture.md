@@ -34,6 +34,12 @@ The optional paste macro is independent of completion. A manual release triggers
 
 Completed messages enter a bounded in-memory session history only after a successful clipboard write. Immutable snapshots reach the interface through its event queue. Explicit recopy uses the same clipboard adapter and never starts recording, refinement, paste or completion sounds. Copy/clear are blocked during active processing; shutdown detaches history observers and clears the list. History text is excluded from status, tray tooltips, notifications and logs.
 
-Recording is a toggle, not a held key. Settings suspends both input actions. One pipeline worker runs at a time. Quit stops sound, removes tray notification/icon, cancels paste, closes hooks and performs bounded cleanup. If a native speech call is still running, the CLI ends its own process to release resources.
+Recording is a toggle, not a held key. Settings suspends both input actions. One pipeline worker runs at a time.
+
+The window's close button and Minimize hide the window when a visible tray icon is available. If the tray is unavailable or still starting, ordinary taskbar minimization keeps the app reachable. These actions preserve the process, recording, processing, configured shortcuts and in-memory history. The tray's Open Voice to Me command restores the same window.
+
+An open Settings editor is closed first, discarding unsaved changes and resuming shortcuts. If capture or shortcut cleanup fails, the window stays visible so the user can retry.
+
+Explicit Quit stops sound, removes the tray notification/icon, cancels paste, closes hooks, clears session history and performs bounded cleanup. If a native speech call is still running, the CLI ends its own process to release resources.
 
 Whisper native inference is cooperatively cancelled while the app stays open. No Jarvis runtime hook, file watcher, automatic paste or automatic send is used.

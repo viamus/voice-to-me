@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1 — 2026-10-03
+
+- X and Minimize hide the window to the ready Windows tray while recording, processing, shortcuts and session history continue.
+- Open Voice to Me in the tray menu restores the same window.
+- Taskbar minimization keeps the app reachable when the tray is unavailable or still starting.
+- Hiding from Settings discards unsaved edits and resumes configured shortcuts.
+- Explicit Quit exits, removes the tray icon, releases resources and clears session history.
+
 ## 0.2.0 — 2026-10-03
 
 - Compact navigation for Dictation, History and Settings in the same window.
