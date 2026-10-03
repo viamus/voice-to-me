@@ -22,14 +22,16 @@ label without repeating the application name.
 Use Windows Segoe UI, with bold labels and generous spacing. Buttons are large
 enough for one-handed use, keyboard focus is visible, and every state has a
 written label and symbol in addition to color. Avoid flashing and unnecessary
-animation. The screen communicates recording, local transcription, refinement,
-and clipboard completion without exposing the dictated text.
+animation. The Dictation screen communicates recording, local transcription,
+refinement and clipboard completion. Completed text is visible only in the
+explicit History page; tray status and notifications contain no message text.
 
 The interface, status messages, settings, and documentation use English.
 Dictated content keeps its source language. Portuguese remains the default
-speech language and can be changed in Settings. The main window has one
-**Settings** button. The built-in settings editor captures the keyboard shortcut
-and edits the writing style alongside mouse, microphone, model, and Codex options.
+speech language and can be changed in Settings. **Dictation**, **History** and
+**Settings** share one window and a consistent navigation strip. The built-in
+settings editor captures keyboard or mouse shortcuts and edits the writing style
+alongside microphone, transcription profile and Codex options.
 It does not ask the user to open an external text editor for these tasks.
 
 The logo SVGs, PNG, and ICO are original local project assets. The vectors do not
@@ -40,10 +42,11 @@ The tray has a separate `voiceui-{state}.png` for each state, with soft color
 accents and recording, processing, completion, or error badges. Completion/error
 notifications report status only and never contain dictated or refined text.
 
-`voiceui-preview.png` shows the main interface with a single Settings button.
+`voiceui-preview.png` shows the main interface and its navigation.
 `settings-preview.png` illustrates the built-in shortcut capture and writing-style
-editor. Both are representative interface illustrations rendered locally with
-Pillow. They are not desktop screenshots and do not access a microphone or
+editor. `history-preview.png` shows session history using synthetic messages.
+These are representative interface illustrations rendered locally with Pillow.
+They are not desktop screenshots and do not access a microphone or
 clipboard. Rebuild the raster assets with Python 3.12:
 
 ```powershell

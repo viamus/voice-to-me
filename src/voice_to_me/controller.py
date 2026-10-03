@@ -5,10 +5,13 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections import deque
 from collections.abc import Callable
+from datetime import datetime
 from enum import StrEnum
 
 from .config import AppSettings, ConfigurationError, read_profile
+from .history import MAX_HISTORY_ENTRIES, HistoryEntry
 
 
 class AppState(StrEnum):
@@ -31,6 +34,9 @@ class AppController:
         self._lock = threading.RLock()
         self._observer: Callable[[AppState, str], None] = lambda *_: None
         self._sound_observer: Callable[[str], None] | None = None
+        self._history_observer: Callable[[tuple[HistoryEntry, ...]], None] | None = None
+        self._history: deque[HistoryEntry] = deque(maxlen=MAX_HISTORY_ENTRIES)
+        self._next_history_id = 1
         self._worker: threading.Thread | None = None
         self._heartbeat: threading.Thread | None = None
         self._heartbeat_stop = threading.Event()
@@ -61,6 +67,58 @@ class AppController:
         with self._lock:
             if not self._closed:
                 self._sound_observer = observer
+
+    @property
+    def history(self) -> tuple[HistoryEntry, ...]:
+        """Newest completed results first, retained in memory for this session."""
+        with self._lock:
+            return tuple(self._history)
+
+    def set_history_observer(
+        self, observer: Callable[[tuple[HistoryEntry, ...]], None] | None,
+    ) -> None:
+        """Deliver a current snapshot, then observe successful additions and clear."""
+        with self._lock:
+            if self._closed:
+                return
+            self._history_observer = observer
+            self._notify_history()
+
+    def _notify_history(self) -> None:
+        with self._lock:
+            if self._closed or self._history_observer is None:
+                return
+            try:
+                self._history_observer(tuple(self._history))
+            except Exception as exc:
+                # Optional UI delivery must never invalidate a successful copy
+                # or disclose result text through callback errors and tracebacks.
+                logging.getLogger(__name__).warning("History observer failed (%s)",
+                                                     type(exc).__name__)
+
+    def copy_history(self, entry_id: int) -> bool:
+        """Manually recopy a retained result without running the dictation pipeline."""
+        with self._lock:
+            if self._closed or self.is_busy or type(entry_id) is not int:
+                return False
+            entry = next((entry for entry in self._history if entry.id == entry_id), None)
+            if entry is None:
+                return False
+            try:
+                self.clipboard.write_text(entry.text)
+            except Exception as exc:
+                logging.getLogger(__name__).warning("History copy failed (%s)", type(exc).__name__)
+                raise ConfigurationError("The text could not be copied. Try again.") from None
+            return True
+
+    def clear_history(self) -> bool:
+        """Forget retained session results; never modify the current clipboard."""
+        with self._lock:
+            if self._closed or self.is_busy:
+                return False
+            self._history.clear()
+            self._notify_history()
+            return True
 
     def _emit_sound(self, cue: str) -> None:
         with self._lock:
@@ -171,8 +229,12 @@ class AppController:
                 elapsed = max(0.0, time.monotonic() - self._operation_started)
                 logging.getLogger(__name__).info("Whisper ready: model=%s backend=%s",
                                                  self.settings.whisper.model, backend)
+                backend_lower = backend.lower()
+                device = "GPU" if "cuda" in backend_lower or "gpu" in backend_lower else (
+                    "CPU" if "cpu" in backend_lower else "your computer"
+                )
                 self._publish(AppState.READY,
-                              f"Local Whisper is ready ({backend}; prepared in {elapsed:.1f}s). "
+                              f"Local transcription is ready on {device} (prepared in {elapsed:.1f}s). "
                               "Press once to record and again to finish.")
         except Exception as exc:
             if not self._cancelled():
@@ -312,9 +374,20 @@ class AppController:
                 self._finish_step()
                 self._step_name, self._step_started = "clipboard", time.monotonic()
                 self.clipboard.write_text(final.strip())
+                if self._cancelled():
+                    return
                 self._finish_step()
                 self._audio, self._transcript = None, ""
                 elapsed = max(0.0, time.monotonic() - self._operation_started)
+                self._history.appendleft(HistoryEntry(
+                    id=self._next_history_id,
+                    created_at=datetime.now().astimezone(),
+                    text=final.strip(),
+                    refined=self.settings.codex.enabled,
+                    elapsed_seconds=elapsed,
+                ))
+                self._next_history_id += 1
+                self._notify_history()
                 logging.getLogger(__name__).info("Dictation completed in %.2f s", elapsed)
                 self._publish(AppState.COPIED,
                               f"Text copied. Total {elapsed:.1f}s. Paste in Teams or anywhere with Ctrl+V.")
@@ -395,6 +468,8 @@ class AppController:
             self._closed = True
             self._observer = lambda *_: None
             self._sound_observer = None
+            self._history_observer = None
+            self._history.clear()
             self._cancel.set()
             self._stop.set()
             self._heartbeat_stop.set()

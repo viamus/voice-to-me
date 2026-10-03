@@ -112,6 +112,7 @@ class SettingsDialog:
         self._codex_ready: bool | None = None
         self._codex_requested = True
         self._codex_message = ""
+        self.capture_exclusion_widgets: tuple[Any, ...] = ()
         self.error_message = ""
 
     @property
@@ -488,9 +489,11 @@ class SettingsDialog:
         from .hotkey_capture import ShortcutCapture
 
         excluded = []
-        for name in ("stop_capture", "cancel", "back", "capture", "clear",
-                     "capture_paste", "clear_paste"):
-            button = self._buttons.get(name)
+        candidates = [self._buttons.get(name) for name in (
+            "stop_capture", "cancel", "back", "capture", "clear", "capture_paste", "clear_paste",
+        )]
+        candidates.extend(self.capture_exclusion_widgets)
+        for button in candidates:
             if button is None:
                 continue
             try:

@@ -284,7 +284,26 @@ def test_startup_model_preparation_never_opens_microphone_or_changes_clipboard(p
     recorder.start.assert_not_called()
     refiner.refine.assert_not_called()
     clipboard.write_text.assert_not_called()
-    assert "CUDA / int8_float16" in controller.message
+    assert "GPU" in controller.message
+    assert "int8_float16" not in controller.message
+
+
+@pytest.mark.parametrize("backend, label", [
+    ("GPU (CUDA) / int8_float16", "GPU"),
+    ("CPU / int8", "CPU"),
+    ("Local model ready (backend not reported).", "your computer"),
+])
+def test_ready_status_uses_friendly_backend_names_while_logs_keep_precision(pipeline, caplog,
+                                                                         backend, label):
+    controller, _, transcriber, _, _, _ = pipeline
+    transcriber.backend_description = backend
+    controller._model_prepared = False
+    caplog.set_level("INFO", logger="voice_to_me.controller")
+    assert controller.prepare()
+    assert controller.wait_for_idle()
+    assert f"ready on {label}" in controller.message
+    assert "int8" not in controller.message and "CUDA" not in controller.message
+    assert f"backend={backend}" in caplog.text
     assert "preparation" in controller.timings
     assert not controller.prepare()  # The resident model is reused.
 

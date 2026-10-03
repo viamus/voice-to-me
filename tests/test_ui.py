@@ -1,5 +1,6 @@
 """State and page dispatch tests without opening devices or a desktop."""
 
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from threading import Thread
@@ -34,6 +35,7 @@ def ui(monkeypatch):
         "_main_page",
         "_main_canvas",
         "_inline_notice",
+        "_progress",
     ):
         setattr(interface, name, Mock())
     interface._root = Mock()
@@ -150,7 +152,7 @@ def test_quit_discards_pending_and_future_sound_events(ui):
     ui._drain_events()
     ui._sounds.close.assert_called_once_with()
     assert [call[0] for call in ui._sounds.mock_calls] == ["close"]
-    assert ui._events.qsize() == 1
+    assert ui._events.empty()
 
 
 def test_unknown_sound_event_is_ignored(ui):
@@ -177,7 +179,7 @@ def test_quit_drops_remaining_and_future_events(ui):
     ui._root.destroy.assert_called_once_with()
     ui._status_title.configure.assert_not_called()
     ui._root.after.assert_not_called()
-    assert ui._events.qsize() == 1  # It was never dispatched after Quit.
+    assert ui._events.empty()  # Quit also releases queued session data.
 
 
 @pytest.mark.parametrize("state", list(NOTIFICATIONS))
@@ -363,3 +365,162 @@ def test_delayed_tray_setup_after_quit_stops_backend_again(ui, monkeypatch):
     ready(tray)
     assert tray.stop.call_count == 2
     assert tray.visible is False
+
+
+def history_entry(identifier=1):
+    from voice_to_me.history import HistoryEntry
+
+    return HistoryEntry(identifier, datetime.now(UTC), "Private synthetic message.",
+                        False, 1.2)
+
+
+def test_processing_indicator_runs_once_across_heartbeats_and_stops_when_complete(ui):
+    ui._render_state("preparing", "Loading…")
+    ui._render_state("preparing", "2 s elapsed")
+    ui._render_state("transcribing", "Transcribing…")
+    ui._render_state("refining", "Refining…")
+    ui._progress.start.assert_called_once_with(15)
+    ui._progress.stop.assert_not_called()
+    ui._render_state("copied", "Copied.")
+    ui._progress.stop.assert_called_once_with()
+    ui._progress.pack_forget.assert_called_once_with()
+    assert not ui._progress_running
+
+
+def test_history_snapshot_is_queued_without_tray_notification_sound_or_automatic_copy(ui):
+    ui._history_page, ui._tray = Mock(), Mock()
+    snapshot = (history_entry(),)
+    worker = Thread(target=ui.publish_history, args=(snapshot,))
+    worker.start()
+    worker.join()
+    ui._history_page.render.assert_not_called()
+    ui._drain_events()
+    ui._history_page.render.assert_called_once_with(snapshot)
+    assert ui._history_entries == snapshot
+    ui.controller.copy_history.assert_not_called()
+    ui._tray.notify.assert_not_called()
+    assert not ui._sounds.mock_calls
+
+
+def test_history_copy_is_explicit_and_does_not_paste_send_or_replay_ready_sound(ui):
+    ui._history_page = Mock()
+    ui.controller.copy_history.return_value = True
+    ui._copy_history(7)
+    ui.controller.copy_history.assert_called_once_with(7)
+    assert "Copied to clipboard" in ui._history_page.set_notice.call_args.args[0]
+    assert not ui._sounds.mock_calls
+    ui.controller.toggle.assert_not_called()
+    assert ui._state == "ready"
+
+
+@pytest.mark.parametrize("blocked", ["recording", "transcribing", "refining", "settings", "worker"])
+def test_history_copy_and_clear_are_blocked_while_busy_or_editing(ui, blocked):
+    ui._history_page = Mock()
+    if blocked == "settings":
+        ui._settings_dialog = Mock(is_open=True)
+    elif blocked == "worker":
+        ui.controller.is_busy = True
+    else:
+        ui._state = blocked
+    ui._copy_history(7)
+    ui._clear_history()
+    ui.controller.copy_history.assert_not_called()
+    ui.controller.clear_history.assert_not_called()
+    ui._refresh_history_actions()
+    ui._history_page.set_available.assert_called_with(False)
+
+
+def test_history_actions_become_available_on_idle_poll_after_copied_worker_finishes(ui):
+    ui._history_page = Mock()
+    ui._state = "copied"
+    ui.controller.is_busy = True
+    ui._drain_events()
+    ui._history_page.set_available.assert_called_with(False)
+    ui.controller.is_busy = False
+    ui._drain_events()
+    ui._history_page.set_available.assert_called_with(True)
+
+
+@pytest.mark.parametrize("failure", [False, True])
+def test_history_copy_stale_or_clipboard_failure_is_inline_and_preserves_state(ui, failure):
+    from voice_to_me.config import ConfigurationError
+
+    ui._history_page = Mock()
+    ui.controller.copy_history.return_value = False
+    if failure:
+        ui.controller.copy_history.side_effect = ConfigurationError("Clipboard is unavailable.")
+    ui._copy_history(7)
+    assert ui._history_page.set_notice.call_args.kwargs["error"]
+    assert ui._state == "ready"
+    assert not ui._sounds.mock_calls
+
+
+def test_navigation_preserves_one_root_and_settings_returns_to_originating_history(ui, monkeypatch):
+    from voice_to_me import ui as ui_module
+
+    root = ui.root
+    ui._history_page = Mock()
+    ui.settings_service = Mock()
+    ui._navigate("history")
+    assert ui._page == "history"
+    ui._history_page.frame.pack.assert_called_once_with(fill="both", expand=True)
+    editor = Mock(is_open=False, capturing=False)
+    editor.show.return_value = True
+    monkeypatch.setattr(ui_module, "SettingsDialog", Mock(return_value=editor))
+    ui._navigate("settings")
+    assert ui._page == "settings" and ui._settings_return_page == "history"
+    ui._close_settings()
+    assert ui._page == "history"
+    assert ui.root is root
+
+
+def test_navigation_cannot_discard_capture_or_editor_that_failed_to_resume(ui):
+    ui._history_page = Mock()
+    ui._settings_dialog = Mock(is_open=True, capturing=True)
+    ui._navigate("history")
+    ui._settings_dialog.close.assert_not_called()
+    ui._settings_dialog.capturing = False
+    ui._settings_dialog.close.return_value = False
+    ui._navigate("history")
+    ui._settings_dialog.close.assert_called_once_with()
+    ui._history_page.frame.pack.assert_not_called()
+
+
+@pytest.mark.parametrize("missing_service", [False, True])
+def test_settings_failure_from_history_is_visible_in_history_with_safe_hint(ui, monkeypatch, missing_service):
+    from voice_to_me import ui as ui_module
+
+    ui._history_page, ui._page = Mock(), "history"
+    if not missing_service:
+        ui.settings_service = Mock()
+        editor = Mock(error_message="Private synthetic backend detail.")
+        editor.show.return_value = False
+        monkeypatch.setattr(ui_module, "SettingsDialog", Mock(return_value=editor))
+    ui._open_settings()
+    notice = ui._history_page.set_notice.call_args
+    assert notice.kwargs["error"]
+    assert "Settings" in notice.args[0]
+    assert "Private" not in notice.args[0]
+    ui._inline_notice.configure.assert_not_called()
+
+
+def test_history_quit_clears_rendered_and_queued_text_and_drops_late_snapshots(ui):
+    history = ui._history_page = Mock()
+    ui._history_entries = (history_entry(),)
+    ui.publish_history((history_entry(2),))
+    ui._quit()
+    history.clear_memory.assert_called_once_with()
+    assert ui._history_page is None and not ui._history_entries and ui._events.empty()
+    ui.publish_history((history_entry(3),))
+    assert ui._events.empty()
+
+
+def test_tray_notification_failure_does_not_prevent_menu_updates_or_following_status(ui):
+    ui._tray = Mock()
+    ui._tray.notify.side_effect = RuntimeError("Private notification failure")
+    ui._render_state("transcribing", "Safe processing status")
+    ui._tray.update_menu.assert_called_once_with()
+    assert ui._tray_error == "Windows notifications are unavailable."
+    ui._render_state("transcribing", "Next elapsed update")
+    assert ui._tray.update_menu.call_count == 2
+    assert ui._tray.notify.call_count == 1

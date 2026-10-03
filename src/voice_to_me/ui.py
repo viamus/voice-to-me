@@ -5,12 +5,17 @@ from __future__ import annotations
 import queue
 import tkinter as tk
 from pathlib import Path
+from threading import Lock
+from tkinter import ttk
 from typing import Any
 
+from .config import ConfigurationError
+from .history_ui import HistoryPage
 from .settings_dialog import SettingsDialog, describe_paste_shortcut, describe_shortcuts
 from .sounds import SoundCues
 
 ASSETS = Path(__file__).parent / "assets"
+PROCESSING_STATES = frozenset({"preparing", "loading_model", "transcribing", "refining"})
 COLORS = {
     "background": "#F3F7F6",
     "surface": "#FFFFFF",
@@ -58,7 +63,7 @@ STATE_PRESENTATION = {
     ),
     "copied": (
         "Copied to clipboard",
-        "Open Teams and paste whenever you want with Ctrl + V.",
+        "Paste into any app when you're ready with Ctrl + V.",
         "success",
         "✓",
     ),
@@ -107,6 +112,13 @@ class VoiceUI:
         self._tray_error = ""
         self._quitting = False
         self._root: tk.Tk | None = None
+        self._page = "dictation"
+        self._settings_return_page = "dictation"
+        self._history_page: HistoryPage | None = None
+        self._history_entries: tuple[Any, ...] = ()
+        self._history_lock = Lock()
+        self._nav_buttons: dict[str, Any] = {}
+        self._progress_running = False
 
     def publish(self, state: Any, message: str) -> None:
         """May be called from recording, processing or hotkey threads."""
@@ -118,6 +130,12 @@ class VoiceUI:
         if not self._quitting:
             self._events.put(("sound", cue, ""))
 
+    def publish_history(self, entries: Any) -> None:
+        """Queue immutable session snapshots without exposing them in status or tray."""
+        with self._history_lock:
+            if not self._quitting:
+                self._events.put(("history", tuple(entries)[:30], ""))
+
     @property
     def root(self) -> tk.Tk | None:
         """Available once run starts; callers must use it on the Tk thread."""
@@ -126,8 +144,8 @@ class VoiceUI:
     def run(self, *, auto_close_seconds: float | None = None) -> None:
         self._root = tk.Tk()
         self._root.title("Voice to Me")
-        height = min(760, self._root.winfo_screenheight() - 100)
-        self._root.geometry(f"580x{max(500, height)}")
+        height = min(720, self._root.winfo_screenheight() - 100)
+        self._root.geometry(f"640x{max(500, height)}")
         self._root.minsize(520, 500)
         self._root.configure(bg=COLORS["background"])
         self._root.option_add("*Font", "{Segoe UI} 11")
@@ -137,7 +155,13 @@ class VoiceUI:
         self._root.bind("<Alt-r>", lambda _event: self._toggle())
         self._root.bind("<Escape>", lambda _event: self._cancel())
         self._root.bind("<Control-s>", lambda _event: self._save_settings())
+        self._root.bind("<Alt-d>", lambda _event: self._navigate("dictation"))
+        self._root.bind("<Alt-h>", lambda _event: self._navigate("history"))
+        self._root.bind("<Alt-s>", lambda _event: self._navigate("settings"))
         self._build_window()
+        history_observer = getattr(self.controller, "set_history_observer", None)
+        if callable(history_observer):
+            history_observer(self.publish_history)
         self._start_tray()
         self._render_state("ready", "")
         self._root.after(80, self._drain_events)
@@ -147,7 +171,15 @@ class VoiceUI:
 
     def _build_window(self) -> None:
         assert self._root is not None
-        header = tk.Frame(self._root, bg=COLORS["pine"], padx=28, pady=24)
+        style = ttk.Style(self._root)
+        style.configure("Voice.Horizontal.TProgressbar", background=COLORS["teal"],
+                        troughcolor=COLORS["line"], thickness=4, borderwidth=0)
+        style.configure("Treeview", font=("Segoe UI", 10), rowheight=29)
+        style.configure("Treeview.Heading", font=("Segoe UI", 10, "bold"))
+        style.map("Treeview", background=[("selected", COLORS["teal"])],
+                  foreground=[("selected", "#FFFFFF")])
+        style.configure("TButton", font=("Segoe UI", 10), padding=(11, 8))
+        header = tk.Frame(self._root, bg=COLORS["pine"], padx=24, pady=15)
         header.pack(fill="x")
         brand = tk.Frame(header, bg=COLORS["pine"])
         brand.pack(fill="x")
@@ -173,18 +205,30 @@ class VoiceUI:
             text="Voice to Me",
             fg="#FFFFFF",
             bg=COLORS["pine"],
-            font=("Segoe UI", 25, "bold"),
+            font=("Segoe UI", 22, "bold"),
         ).pack(anchor="w")
         tk.Label(
             titles,
             text="YOUR VOICE. YOUR WORDS.",
             fg="#CBDEDD",
             bg=COLORS["pine"],
-            font=("Segoe UI", 9),
+            font=("Segoe UI", 8),
         ).pack(anchor="w")
+
+        navigation = tk.Frame(self._root, bg=COLORS["background"], padx=24, pady=12)
+        navigation.pack(fill="x")
+        for page, label in (("dictation", "Dictation"), ("history", "History"),
+                            ("settings", "Settings")):
+            button = self._secondary_button(navigation, label, lambda target=page: self._navigate(target))
+            button.pack(side="left", fill="x", expand=True, padx=(0 if page == "dictation" else 6, 0))
+            self._nav_buttons[page] = button
 
         self._page_host = tk.Frame(self._root, bg=COLORS["background"])
         self._page_host.pack(fill="both", expand=True)
+        footer = tk.Frame(self._root, bg=COLORS["background"], padx=24, pady=10)
+        footer.pack(fill="x", side="bottom")
+        ttk.Button(footer, text="Minimize", command=self._hide_window).pack(side="left")
+        ttk.Button(footer, text="Quit", command=self._quit).pack(side="right")
         self._main_page = tk.Frame(self._page_host, bg=COLORS["background"])
         self._main_page.pack(fill="both", expand=True)
         body = tk.Frame(self._main_page, bg=COLORS["background"])
@@ -193,7 +237,7 @@ class VoiceUI:
         canvas.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
         canvas.pack(side="left", fill="both", expand=True)
-        content = tk.Frame(canvas, bg=COLORS["background"], padx=28, pady=22)
+        content = tk.Frame(canvas, bg=COLORS["background"], padx=24, pady=8)
         content_window = canvas.create_window((0, 0), window=content, anchor="nw")
         content.bind(
             "<Configure>", lambda _event: canvas.configure(scrollregion=canvas.bbox("all"))
@@ -201,23 +245,21 @@ class VoiceUI:
         canvas.bind(
             "<Configure>", lambda event: canvas.itemconfigure(content_window, width=event.width)
         )
-        self._root.bind("<MouseWheel>", lambda event: self._scroll_page(-int(event.delta / 120)))
-        self._root.bind("<Next>", lambda _event: canvas.yview_scroll(1, "pages"))
-        self._root.bind("<Prior>", lambda _event: canvas.yview_scroll(-1, "pages"))
+        self._root.bind("<MouseWheel>", self._mouse_wheel)
         self._main_canvas = canvas
         tk.Label(
             content,
-            text="Write a message with your voice",
-            font=("Segoe UI", 17, "bold"),
+            text="Dictation",
+            font=("Segoe UI", 18, "bold"),
             bg=COLORS["background"],
             fg=COLORS["ink"],
         ).pack(anchor="w")
         tk.Label(
             content,
-            text="Record. Refine. Paste into Teams when you're ready.",
+            text="Speak naturally. Your text is copied when ready.",
             bg=COLORS["background"],
             fg=COLORS["muted"],
-        ).pack(anchor="w", pady=(5, 18))
+        ).pack(anchor="w", pady=(5, 16))
 
         status_card = tk.Frame(
             content,
@@ -253,6 +295,9 @@ class VoiceUI:
             wraplength=450,
         )
         self._status_detail.pack(fill="x", pady=(13, 0))
+        self._progress = ttk.Progressbar(
+            status_card, mode="indeterminate", style="Voice.Horizontal.TProgressbar",
+        )
 
         self._record_button = tk.Button(
             content,
@@ -266,7 +311,7 @@ class VoiceUI:
             disabledforeground="#617572",
             relief="flat",
             bd=0,
-            pady=17,
+            pady=14,
             cursor="hand2",
             takefocus=True,
             highlightthickness=2,
@@ -290,10 +335,6 @@ class VoiceUI:
         self._retry_button = self._secondary_button(actions, "Try again", self._retry)
         self._retry_button.pack(side="left", fill="x", expand=True, padx=(6, 0))
 
-        tk.Frame(content, height=1, bg=COLORS["line"]).pack(fill="x", pady=(23, 15))
-        settings = tk.Frame(content, bg=COLORS["background"])
-        settings.pack(fill="x")
-        self._secondary_button(settings, "Settings", self._open_settings).pack(fill="x")
         self._inline_notice = tk.Label(
             content,
             text="",
@@ -306,35 +347,18 @@ class VoiceUI:
         self._inline_notice.pack(fill="x", pady=(6, 0))
         tk.Label(
             content,
-            text="The final text goes to your clipboard.\nYou choose where to paste and send it.",
+            text="Choose where to paste and send.\nFind your recent messages in History.",
             bg=COLORS["background"],
             fg=COLORS["muted"],
             justify="left",
             anchor="w",
             font=("Segoe UI", 10),
         ).pack(fill="x", pady=(17, 8))
-        footer = tk.Frame(self._main_page, bg=COLORS["background"], padx=28, pady=12)
-        footer.pack(fill="x", side="bottom")
-        tk.Button(
-            footer,
-            text="Minimize",
-            command=self._hide_window,
-            bg=COLORS["background"],
-            fg=COLORS["muted"],
-            relief="flat",
-            cursor="hand2",
-            padx=0,
-        ).pack(side="left")
-        tk.Button(
-            footer,
-            text="Quit",
-            command=self._quit,
-            bg=COLORS["background"],
-            fg=COLORS["muted"],
-            relief="flat",
-            cursor="hand2",
-        ).pack(side="right")
         body.pack(fill="both", expand=True)
+        self._history_page = HistoryPage(
+            self._page_host, colors=COLORS, on_copy=self._copy_history, on_clear=self._clear_history,
+        )
+        self._update_navigation()
 
         def keep_focus_visible(event: tk.Event) -> None:
             widget = event.widget
@@ -386,10 +410,10 @@ class VoiceUI:
         )
         self._status_symbol.configure(text=symbol, fg=COLORS[color_key])
         self._status_title.configure(text=title)
-        # Controller messages describe status/errors; transcript and result are
-        # deliberately never shown or added to tray tooltips.
+        # Status/errors remain separate from the session's read-only history.
+        # Tray tooltips and notifications never contain message text.
         self._status_detail.configure(text=message or default_detail)
-        busy = state in {"preparing", "loading_model", "transcribing", "refining"}
+        busy = state in PROCESSING_STATES
         self._record_button.configure(
             text="Finish recording"
             if state == "recording"
@@ -411,16 +435,33 @@ class VoiceUI:
         self._retry_button.configure(
             state="normal" if state == "error" and not self._settings_open() else "disabled"
         )
+        if hasattr(self, "_progress"):
+            if busy and not self._progress_running:
+                self._progress.pack(fill="x", pady=(14, 0))
+                self._progress.start(15)
+                self._progress_running = True
+            elif not busy and self._progress_running:
+                self._progress.stop()
+                self._progress.pack_forget()
+                self._progress_running = False
+        self._update_navigation()
+        self._refresh_history_actions()
         if self._tray is not None:
-            self._tray.title = f"Voice to Me · {title}"
             try:
+                self._tray.title = f"Voice to Me · {title}"
                 if state in self._tray_images:
                     self._tray.icon = self._tray_images[state]
+            except (OSError, RuntimeError):
+                self._tray_error = "The tray icon could not be updated."
+            try:
                 self._tray.update_menu()
-                if state != previous_state and state in NOTIFICATIONS:
-                    self._tray.notify(NOTIFICATIONS[state], f"Voice to Me · {title}")
             except (OSError, RuntimeError):
                 self._tray_error = "The tray menu could not be updated."
+            if state != previous_state and state in NOTIFICATIONS:
+                try:
+                    self._tray.notify(NOTIFICATIONS[state], f"Voice to Me · {title}")
+                except (OSError, RuntimeError):
+                    self._tray_error = "Windows notifications are unavailable."
 
     def _drain_events(self) -> None:
         if self._quitting or self._root is None:
@@ -440,12 +481,18 @@ class VoiceUI:
                 }.get(value)
                 if play is not None:
                     play()
+            elif kind == "history":
+                self._history_entries = value
+                if self._history_page is not None:
+                    self._history_page.render(value)
+                self._refresh_history_actions()
             elif kind == "command":
                 {
                     "show": self._show_window,
                     "toggle": self._toggle,
                     "cancel": self._cancel,
-                    "settings": self._open_settings,
+                    "settings": self._show_settings,
+                    "history": self._show_history,
                     "quit": self._quit,
                 }[value]()
                 if self._quitting:
@@ -457,6 +504,8 @@ class VoiceUI:
             if capture_lock != self._capture_action_lock:
                 self._capture_action_lock = capture_lock
                 self._render_state(self._state, self._last_message)
+            self._update_navigation()
+            self._refresh_history_actions()
             self._root.after(80, self._drain_events)
 
     def _capture_active(self) -> bool:
@@ -479,24 +528,120 @@ class VoiceUI:
         if not self._settings_open():
             self.controller.retry()
 
+    def _history_available(self) -> bool:
+        busy = getattr(self.controller, "is_busy", False)
+        return (not self._quitting and not self._settings_open()
+                and self._state not in PROCESSING_STATES | {"recording"}
+                and busy is not True)
+
+    def _refresh_history_actions(self) -> None:
+        if self._history_page is not None:
+            self._history_page.set_available(self._history_available())
+
+    def _update_navigation(self) -> None:
+        for name, button in self._nav_buttons.items():
+            enabled = not self._quitting and not self._capture_active()
+            if name == "settings" and not self._settings_open():
+                enabled = enabled and self._state not in PROCESSING_STATES | {"recording"}
+            selected = name == self._page
+            button.configure(
+                state="normal" if enabled else "disabled",
+                bg=COLORS["pine"] if selected else COLORS["surface"],
+                fg="#FFFFFF" if selected else COLORS["ink"],
+                activebackground=COLORS["pine"] if selected else "#E4EEEB",
+                activeforeground="#FFFFFF" if selected else COLORS["ink"],
+            )
+
+    def _show_page(self, page: str) -> None:
+        self._main_page.pack_forget()
+        if self._history_page is not None:
+            self._history_page.frame.pack_forget()
+        if page == "history" and self._history_page is not None:
+            self._history_page.frame.pack(fill="both", expand=True)
+        else:
+            page = "dictation"
+            self._main_page.pack(fill="both", expand=True)
+        self._page = page
+        self._update_navigation()
+        self._refresh_history_actions()
+
+    def _navigate(self, page: str) -> None:
+        if self._quitting or self._capture_active():
+            return
+        if page == "settings":
+            if self._state in PROCESSING_STATES | {"recording"}:
+                return
+            self._open_settings()
+        elif page in {"dictation", "history"}:
+            if self._settings_open() and not self._settings_dialog.close():
+                return
+            self._show_page(page)
+
+    def _show_history(self) -> None:
+        self._show_window()
+        self._navigate("history")
+
+    def _show_settings(self) -> None:
+        self._show_window()
+        self._navigate("settings")
+
+    def _copy_history(self, entry_id: int) -> None:
+        if self._history_page is None or not self._history_available():
+            return
+        try:
+            copied = getattr(self.controller, "copy_history", lambda _id: False)(entry_id)
+        except ConfigurationError as exc:
+            self._history_page.set_notice(str(exc), error=True)
+            return
+        self._history_page.set_notice(
+            "Copied to clipboard. Paste whenever you're ready." if copied
+            else "This message is unavailable. Wait until the current task finishes.",
+            error=not copied,
+        )
+
+    def _clear_history(self) -> None:
+        if self._history_page is None or not self._history_available():
+            return
+        cleared = getattr(self.controller, "clear_history", lambda: False)()
+        if not cleared:
+            self._history_page.set_notice("Wait until the current task finishes before clearing history.",
+                                          error=True)
+
     def _open_settings(self) -> None:
         if self.settings_service is None:
-            self._inline_notice.configure(text="Settings are unavailable in this session.")
+            if self._page == "history" and self._history_page is not None:
+                self._history_page.set_notice("Settings are unavailable in this session.", error=True)
+            else:
+                self._inline_notice.configure(text="Settings are unavailable in this session.")
             return
         if self._settings_dialog is None:
             self._settings_dialog = SettingsDialog(
                 self._page_host, self.settings_service, self._settings_applied, self._close_settings
             )
+            self._settings_dialog.capture_exclusion_widgets = tuple(self._nav_buttons.values())
         if self._settings_dialog.show():
             self._inline_notice.configure(text="")
+            if self._page != "settings":
+                self._settings_return_page = self._page
             self._main_page.pack_forget()
+            if self._history_page is not None:
+                self._history_page.frame.pack_forget()
             self._settings_dialog.frame.pack(fill="both", expand=True)
+            self._page = "settings"
+            self._update_navigation()
+            self._refresh_history_actions()
         else:
-            self._inline_notice.configure(text=self._settings_dialog.error_message)
+            if self._page == "history" and self._history_page is not None:
+                self._history_page.set_notice(
+                    "Settings could not open. Finish or cancel the current task and try again.",
+                    error=True,
+                )
+            else:
+                self._inline_notice.configure(text=self._settings_dialog.error_message)
 
     def _close_settings(self) -> None:
         if not self._quitting:
-            self._main_page.pack(fill="both", expand=True)
+            self._show_page(self._settings_return_page)
             self._render_state(self._state, self._last_message)
 
     def _save_settings(self) -> None:
@@ -506,8 +651,15 @@ class VoiceUI:
     def _scroll_page(self, delta: int) -> None:
         if self._settings_open():
             self._settings_dialog.scroll(delta)
+        elif self._page == "history" and self._history_page is not None:
+            self._history_page.scroll(delta)
         else:
             self._main_canvas.yview_scroll(delta, "units")
+
+    def _mouse_wheel(self, event: Any) -> None:
+        if isinstance(event.widget, (tk.Text, ttk.Treeview)):
+            return  # These widgets already scroll through their class binding.
+        self._scroll_page(-int(event.delta / 120))
 
     def _settings_applied(self, settings: Any) -> None:
         self.config_path = settings.config_path
@@ -564,10 +716,25 @@ class VoiceUI:
                 "Voice to Me · Ready to dictate",
                 menu=pystray.Menu(
                     pystray.MenuItem("Open Voice to Me", enqueue("show"), default=True),
-                    pystray.MenuItem("Record / finish", enqueue("toggle")),
-                    pystray.MenuItem("Cancel", enqueue("cancel")),
+                    pystray.MenuItem(
+                        lambda _item: "Finish recording" if self._state == "recording"
+                        else "Start recording", enqueue("toggle"),
+                        enabled=lambda _item: not self._quitting and not self._settings_open()
+                        and self._state not in PROCESSING_STATES,
+                    ),
+                    pystray.MenuItem(
+                        "Cancel", enqueue("cancel"),
+                        enabled=lambda _item: not self._quitting and not self._settings_open()
+                        and self._state in PROCESSING_STATES | {"recording"},
+                    ),
                     pystray.Menu.SEPARATOR,
-                    pystray.MenuItem("Settings", enqueue("settings")),
+                    pystray.MenuItem("History", enqueue("history"),
+                                     enabled=lambda _item: not self._quitting and not self._capture_active()),
+                    pystray.MenuItem(
+                        "Settings", enqueue("settings"),
+                        enabled=lambda _item: not self._quitting and not self._capture_active()
+                        and self._state not in PROCESSING_STATES | {"recording"},
+                    ),
                     pystray.Menu.SEPARATOR,
                     pystray.MenuItem("Quit", enqueue("quit")),
                 ),
@@ -581,6 +748,19 @@ class VoiceUI:
         if self._quitting:
             return
         self._quitting = True
+        with self._history_lock:
+            self._history_entries = ()
+            while True:
+                try:
+                    self._events.get_nowait()
+                except queue.Empty:
+                    break
+        if self._history_page is not None:
+            try:
+                self._history_page.clear_memory()
+            except (RuntimeError, tk.TclError):
+                pass
+            self._history_page = None
         tray, self._tray = self._tray, None
         try:
             self._sounds.close()
@@ -602,5 +782,11 @@ class VoiceUI:
                         if self._settings_dialog is not None:
                             self._settings_dialog.close(force=True)
                     finally:
+                        with self._history_lock:
+                            while True:
+                                try:
+                                    self._events.get_nowait()
+                                except queue.Empty:
+                                    break
                         if self._root is not None:
                             self._root.destroy()

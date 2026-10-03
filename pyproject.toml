@@ -4,8 +4,9 @@ build-backend = "hatchling.build"
 
 [project]
 name = "voice-to-me"
-version = "0.1.0"
-description = "Voice to Me: local Windows dictation with Codex refinement and clipboard output."
+version = "0.2.0"
+description = "Windows voice dictation with local Whisper, optional Codex CLI refinement and accessible shortcuts."
+readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "numpy>=1.26,<3",
@@ -25,6 +26,11 @@ gpu = [
 
 [project.scripts]
 voice-to-me = "voice_to_me.cli:main"
+
+[project.urls]
+Repository = "https://github.com/viamus/voice-to-me"
+Documentation = "https://github.com/viamus/voice-to-me#readme"
+Issues = "https://github.com/viamus/voice-to-me/issues"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

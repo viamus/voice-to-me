@@ -1,3 +1,3 @@
-"""Voice to Me: gravação local, refinamento e clipboard."""
+"""Voice to Me: local dictation, optional refinement and clipboard output."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

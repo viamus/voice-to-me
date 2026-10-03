@@ -1,5 +1,7 @@
 # Voice to Me
 
+[![Windows checks](https://github.com/viamus/voice-to-me/actions/workflows/ci.yml/badge.svg)](https://github.com/viamus/voice-to-me/actions/workflows/ci.yml)
+
 **Speak naturally. Turn your voice into a message. Paste it with one button.**
 
 Voice to Me is a Windows dictation app with local Whisper transcription, optional text refinement through **OpenAI Codex CLI**, and separate keyboard or mouse shortcuts for recording and pasting.
@@ -23,6 +25,7 @@ The previews are local design illustrations, not screenshots or captured convers
 - Confirms recording start, recording stop and completion with short sounds.
 - Shows processing stages, elapsed time and Windows tray notifications.
 - Keeps shortcuts, writing style, transcription and Codex options in the same built-in Settings page.
+- Keeps the last 30 completed messages in session history, with a full preview and a button to copy again.
 
 ## Codex CLI is required for text refinement
 
@@ -65,9 +68,17 @@ Recording and paste shortcuts are paused while editing. The app rejects conflict
 
 ![Built-in Settings illustration](src/voice_to_me/assets/settings-preview.png)
 
+## Find a previous message
+
+Use **History** in the window or tray menu to review the last 30 completed messages from this session. Select a message to see its full text, completion time, duration and whether Codex refined it. **Copy text** puts it back on the clipboard; use your separate paste shortcut when ready. **Clear history** removes the list.
+
+History stays in memory and is cleared when you quit. It does not save conversations to disk. Failed or cancelled attempts do not enter the list.
+
+![Session history illustration](src/voice_to_me/assets/history-preview.png)
+
 ## Your data
 
-Audio stays in memory on your computer. With refinement enabled, only the transcription and writing style are passed to Codex CLI. With refinement disabled, transcription stays local. Logs exclude dictated text and style instructions. Clipboard output is under your control.
+Audio and session history stay in memory on your computer. With refinement enabled, only the transcription and writing style are passed to Codex CLI. With refinement disabled, transcription stays local. Logs exclude dictated text and style instructions. Clipboard output is under your control.
 
 ## Documentation
 

@@ -6,12 +6,14 @@ Validated on Windows with Python **3.12.12** on **2026-10-03**.
 
 | Check | Result |
 | --- | --- |
-| `python -m pytest -q` | **568 passed** |
+| `python -m pytest -q` | **623 passed** |
 | `python -m ruff check src tests scripts` | Passed |
 | `uv build --wheel --offline` | Passed |
 | `python scripts/check_wheel.py` | Required modules, defaults, icons and three sound files present |
 
-The tests cover pipeline transitions, cancellation, retries, optional Codex refinement, local CLI readiness, Unicode clipboard failure recovery, recording and paste shortcut isolation, embedded Settings and rollback, sound event ordering, and bounded shutdown. They use simulated audio, hooks, clipboard and process adapters rather than recording or pasting into another application.
+The tests cover pipeline transitions, cancellation, retries, optional Codex refinement, local CLI readiness, Unicode clipboard failure recovery, recording and paste shortcut isolation, embedded Settings and rollback, sound event ordering, and bounded shutdown. Session-history coverage includes its 30-message limit, immutable Unicode snapshots, cancellation/failure exclusion, explicit recopy, busy guards, selection removal, notification isolation and shutdown clearing. Tests use simulated audio, hooks, clipboard and process adapters rather than recording or pasting into another application.
+
+The 0.2.0 interface also passed a real hidden Tk check: same-root navigation, read-only Unicode history preview, explicit recopy/clear, Settings returning to History, resize operations, processing-indicator transitions and shutdown cleanup. Device, clipboard, sound, Codex and tray adapters were simulated in that check. A separate Pythonw demo initialized the actual window/tray and exited with code 0 after automatic close; no recording, clipboard replacement or refinement ran.
 
 Prior native Windows checks also initialized the real Tk window, edited and saved Settings in that same window, invoked tray notification APIs, and verified Pythonw shutdown with a blocked preparation worker. The desktop was locked, so visible notification delivery and physical focus behavior were not assessed.
 

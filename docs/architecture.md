@@ -32,6 +32,8 @@ The optional paste macro is independent of completion. A manual release triggers
 
 ## Lifecycle
 
+Completed messages enter a bounded in-memory session history only after a successful clipboard write. Immutable snapshots reach the interface through its event queue. Explicit recopy uses the same clipboard adapter and never starts recording, refinement, paste or completion sounds. Copy/clear are blocked during active processing; shutdown detaches history observers and clears the list. History text is excluded from status, tray tooltips, notifications and logs.
+
 Recording is a toggle, not a held key. Settings suspends both input actions. One pipeline worker runs at a time. Quit stops sound, removes tray notification/icon, cancels paste, closes hooks and performs bounded cleanup. If a native speech call is still running, the CLI ends its own process to release resources.
 
 Whisper native inference is cooperatively cancelled while the app stays open. No Jarvis runtime hook, file watcher, automatic paste or automatic send is used.

@@ -4,6 +4,8 @@ from zipfile import ZipFile
 
 REQUIRED = {
     "voice_to_me/codex_status.py",
+    "voice_to_me/history.py",
+    "voice_to_me/history_ui.py",
     "voice_to_me/paste.py",
     "voice_to_me/sounds.py",
     "voice_to_me/defaults/config.toml",

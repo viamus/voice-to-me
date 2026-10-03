@@ -10,11 +10,13 @@ import os
 import sys
 from pathlib import Path
 
+from . import __version__
 from .config import ConfigurationError, load_settings
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Voice to Me for Windows (Python 3.12)")
+    parser.add_argument("--version", action="version", version=f"Voice to Me {__version__}")
     parser.add_argument("--config", type=Path, help="Custom config.toml path")
     sub = parser.add_subparsers(dest="command")
     sub.add_parser("run", help="Open Voice to Me and enable configured toggle shortcuts")
@@ -30,6 +32,7 @@ def _check(settings) -> int:
     from .codex_status import check_codex_readiness
 
     failures = 0
+    print(f"Voice to Me: {__version__}")
     print(f"Python: {sys.version.split()[0]}")
     print(f"Config: {settings.config_path}")
     print(f"Writing profile: {settings.profile_path}")

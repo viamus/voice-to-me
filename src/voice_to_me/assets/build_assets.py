@@ -97,7 +97,7 @@ def wrapped_text(
     return y
 
 
-def settings_preview() -> Image.Image:
+def _settings_contents() -> Image.Image:
     """Show one embedded Settings page; the preview never captures a device."""
     image = Image.new("RGB", (940, 1771), CANVAS)
     draw = ImageDraw.Draw(image)
@@ -194,6 +194,97 @@ def settings_preview() -> Image.Image:
     return image
 
 
+def preview_shell(page: str, bottom: int = 997) -> tuple[Image.Image, ImageDraw.ImageDraw]:
+    image = Image.new("RGB", (940, bottom + 76), CANVAS)
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle((48, 38, 902, bottom + 8), radius=24, fill="#D5E2DF")
+    draw.rounded_rectangle((40, 30, 894, bottom), radius=24, fill=CANVAS)
+    draw.rounded_rectangle((40, 30, 894, 144), radius=24, fill=PINE)
+    draw.rectangle((40, 116, 894, 144), fill=PINE)
+    mark = icon(64)
+    image.paste(mark, (77, 55), mark)
+    text(draw, (160, 53), "Voice to Me", 34, "#FFFFFF", True)
+    text(draw, (163, 99), "YOUR VOICE. YOUR WORDS.", 14, "#CBDEDD")
+    text(draw, (836, 47), "×", 27, "#CBDEDD")
+    for index, label in enumerate(("Dictation", "History", "Settings")):
+        left = 76 + index * 263
+        selected = label.lower() == page
+        pill(draw, (left, 165, left + 250, 215), label,
+             fill=PINE if selected else "#FFFFFF", color="#FFFFFF" if selected else INK)
+    text(draw, (43, bottom + 32),
+         "Same Voice to Me window · Local illustration · No device capture", 17, MUTED)
+    return image, draw
+
+
+def preview_footer(draw: ImageDraw.ImageDraw, y: int = 910) -> None:
+    draw.line((76, y, 858, y), fill="#D5E2DF", width=2)
+    pill(draw, (76, y + 19, 235, y + 63), "Minimize", size=18)
+    pill(draw, (757, y + 19, 859, y + 63), "Quit", size=18)
+
+
+def settings_preview() -> Image.Image:
+    image, _draw = preview_shell("settings", bottom=1735)
+    # Show the full scrollable Settings content below the shared navigation.
+    content = _settings_contents().crop((74, 205, 860, 1696))
+    image.paste(content, (74, 232))
+    return image
+
+
+def dictation_preview() -> Image.Image:
+    image, draw = preview_shell("dictation")
+    text(draw, (76, 241), "Dictation", 31, INK, True)
+    text(draw, (77, 290), "Speak naturally. Your text is copied when ready.", 19, MUTED)
+    draw.rounded_rectangle((75, 335, 859, 503), radius=12, fill="#FFFFFF", outline="#D5E2DF", width=2)
+    text(draw, (98, 353), "02", 28, TEAL, True)
+    text(draw, (157, 352), "Transcribing", 28, INK, True)
+    text(draw, (99, 407), "Turning your recording into text locally.", 20, MUTED)
+    text(draw, (99, 438), "4 seconds elapsed", 18, MUTED)
+    draw.rounded_rectangle((99, 479, 835, 484), radius=2, fill="#D5E2DF")
+    draw.rounded_rectangle((269, 479, 449, 484), radius=2, fill=TEAL)
+    pill(draw, (76, 530, 859, 606), "Transcribing…", fill=CORAL, color="#617572", size=26)
+    text(draw, (203, 627), "Record: Mouse X1  ·  in this window: Alt + R", 18, MUTED)
+    text(draw, (391, 656), "Paste: Mouse X2", 18, MUTED)
+    pill(draw, (76, 708, 458, 762), "Cancel", size=20)
+    pill(draw, (475, 708, 859, 762), "Try again", color="#91A4A0", size=20)
+    text(draw, (77, 802), "Choose where to paste and send.", 18, MUTED)
+    text(draw, (77, 833), "Find your recent messages in History.", 18, MUTED)
+    preview_footer(draw)
+    return image
+
+
+def history_preview() -> Image.Image:
+    image, draw = preview_shell("history")
+    text(draw, (76, 241), "History", 31, INK, True)
+    text(draw, (77, 290), "Last 30 messages in this session. Cleared when you quit.", 18, MUTED)
+    draw.rounded_rectangle((76, 333, 859, 523), radius=6, fill="#FFFFFF", outline="#D5E2DF", width=2)
+    draw.rectangle((78, 335, 857, 376), fill="#EAF1EE")
+    for x, label in ((97, "Time"), (229, "Mode"), (348, "Message")):
+        text(draw, (x, 344), label, 18, INK, True)
+    for index, (stamp, mode, snippet) in enumerate((
+        ("12:04:36", "Refined", "Please review the proposal before Friday."),
+        ("12:02:09", "Local", "Move tomorrow's meeting to 10 am."),
+        ("11:58:42", "Refined", "Thank you for sending the updated plan."),
+    )):
+        y = 377 + index * 47
+        if index == 0:
+            draw.rectangle((78, y, 857, y + 47), fill=TEAL)
+        color = "#FFFFFF" if index == 0 else INK
+        text(draw, (97, y + 12), stamp, 17, color)
+        text(draw, (229, y + 12), mode, 17, color)
+        text(draw, (348, y + 12), snippet, 17, color)
+    text(draw, (77, 553), "Refined with Codex CLI · Oct 03, 12:04:36 · 3.2 s total", 17, MUTED)
+    draw.rounded_rectangle((76, 590, 859, 777), radius=6, fill="#FFFFFF", outline="#D5E2DF", width=2)
+    wrapped_text(draw, (97, 613),
+                 "Please review the proposal before Friday.\n\n"
+                 "I would like to confirm the next steps before our meeting.",
+                 718, size=21, color=INK, spacing=11)
+    pill(draw, (76, 804, 247, 858), "Copy text", size=19)
+    pill(draw, (659, 804, 859, 858), "Clear history", size=19)
+    text(draw, (77, 875), "Copied to clipboard. Paste whenever you're ready.", 17, MUTED)
+    preview_footer(draw, y=911)
+    return image
+
+
 def build() -> None:
     mark = icon(256)
     mark.save(ROOT / "voiceui.png")
@@ -232,88 +323,9 @@ def build() -> None:
     text(draw, (254, 150), "YOUR VOICE. YOUR WORDS.", 22, "#CBDEDD")
     wordmark.save(ROOT / "voiceui-wordmark.png")
 
-    preview = Image.new("RGB", (1500, 1080), PINE)
-    draw = ImageDraw.Draw(preview)
-    preview_mark = mark.resize((70, 70), Image.Resampling.LANCZOS)
-    preview.paste(preview_mark, (54, 33), preview_mark)
-    text(draw, (142, 38), "Voice to Me", 41, "#FFFFFF", True)
-    text(draw, (1300, 58), "WINDOWS", 20, "#CBDEDD")
-
-    # A local, representative UI illustration rather than a desktop screenshot.
-    draw.rounded_rectangle((53, 132, 744, 988), radius=23, fill="#08272C")
-    draw.rounded_rectangle((47, 126, 738, 980), radius=20, fill=CANVAS)
-    draw.rounded_rectangle((47, 126, 738, 315), radius=20, fill="#0B3037")
-    draw.rectangle((47, 275, 738, 315), fill="#0B3037")
-    draw.ellipse((690, 145, 710, 165), fill="#527177")
-    window_mark = mark.resize((71, 71), Image.Resampling.LANCZOS)
-    preview.paste(window_mark, (81, 188), window_mark)
-    text(draw, (170, 184), "Voice to Me", 35, "#FFFFFF", True)
-    text(draw, (174, 237), "YOUR VOICE. YOUR WORDS.", 15, "#CBDEDD")
-    text(draw, (82, 340), "Write a message with your voice", 28, INK, True)
-    text(draw, (82, 388), "Record. Refine. Paste anywhere when you're ready.", 19, MUTED)
-    draw.rounded_rectangle(
-        (82, 445, 701, 612), radius=15, fill="#FFFFFF", outline="#D5E2DF", width=2
-    )
-    draw.ellipse((108, 477, 130, 499), fill=CORAL)
-    text(draw, (154, 465), "Recording your voice", 29, INK, True)
-    text(draw, (108, 526), "Speak at your own pace. Press again", 20, MUTED)
-    text(draw, (108, 556), "to stop recording.", 20, MUTED)
-    pill(draw, (82, 638, 701, 718), "Finish recording", fill=CORAL, color=PINE, size=26)
-    text(draw, (128, 733), "Toggle: Ctrl + Alt + Space  ·  Alt + R in this window", 17, MUTED)
-    pill(draw, (82, 774, 380, 829), "Cancel", size=19)
-    pill(draw, (401, 774, 701, 829), "Try again", color="#91A4A0", size=19)
-    draw.line((82, 853, 701, 853), fill="#D5E2DF", width=2)
-    pill(draw, (82, 872, 701, 925), "Settings", size=18)
-    text(draw, (82, 939), "You choose where to paste and send.", 17, MUTED)
-
-    text(draw, (800, 191), "Your voice,", 52, "#FFFFFF", True)
-    text(draw, (800, 253), "ready to paste.", 52, "#FFFFFF", True)
-    text(draw, (803, 337), "Speak naturally. Keep your own tone.", 22, "#CBDEDD")
-    text(draw, (803, 373), "Paste anywhere when you're ready.", 22, "#CBDEDD")
-
-    for y, number, label, detail, color in (
-        (441, "01", "Ready to record", "A shortcut or a large button.", "#167C80"),
-        (
-            571,
-            "02",
-            "Loading the speech model",
-            "Local model. Automatic GPU acceleration.",
-            "#167C80",
-        ),
-        (
-            701,
-            "03",
-            "Transcribing & refining",
-            "Local Whisper, then your writing profile.",
-            "#167C80",
-        ),
-        (
-            831,
-            "✓",
-            "Copied to your clipboard",
-            "Only the final text. Paste it yourself.",
-            "#16725D",
-        ),
-    ):
-        draw.rounded_rectangle((799, y, 1440, y + 112), radius=16, fill="#EAF3F0")
-        draw.rounded_rectangle((820, y + 26, 885, y + 91), radius=15, fill=color)
-        if number == "✓":
-            draw.line([(834, y + 59), (846, y + 71), (870, y + 45)], fill="#FFFFFF", width=5)
-        else:
-            text(draw, (834, y + 41), number, 27, "#FFFFFF", True)
-        text(draw, (906, y + 27), label, 25, INK, True)
-        text(draw, (907, y + 71), detail, 18, MUTED)
-
-    text(
-        draw,
-        (56, 1022),
-        "Original local assets · Segoe UI · Accessible toggle controls",
-        18,
-        "#CBDEDD",
-    )
-    text(draw, (970, 1022), "Interface illustration / no device capture", 17, "#CBDEDD")
-    preview.save(ROOT / "voiceui-preview.png")
+    dictation_preview().save(ROOT / "voiceui-preview.png")
     settings_preview().save(ROOT / "settings-preview.png")
+    history_preview().save(ROOT / "history-preview.png")
 
 
 if __name__ == "__main__":

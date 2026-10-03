@@ -40,11 +40,16 @@ Press once to record, speak naturally, then press again to stop. The completion 
 
 Busy processing ignores additional recording toggles. **Cancel** discards the pending result; **Try again** reuses retained audio or transcription after a failure. A new recording replaces this retry buffer. Closing the app removes the tray, stops hooks and cancels pending paste work.
 
+Navigate between **Dictation**, **History** and **Settings** inside the same window. History lists the last 30 successfully copied messages with timestamps and their refinement mode. Select one to read its full text and use **Copy text** to recover it. Copy and clear wait until the current operation is finished. History is held only for this session and disappears on Quit; **Clear history** removes it sooner.
+
 ## Files and diagnostics
 
 The default settings and writing style live in `%LOCALAPPDATA%\VoiceToMe`. Use the editor rather than opening another application. A custom configuration can be passed with `--config`.
 
 ```powershell
+# Show the app version without loading settings or adapters.
+.\.venv\Scripts\python.exe -m voice_to_me --version
+
 # List microphones; does not record.
 .\.venv\Scripts\python.exe -m voice_to_me devices
 
