@@ -105,3 +105,16 @@ uv build --wheel
 ```
 
 GitHub Actions runs the tests, lint and package checks on Windows with Python 3.12. Tests use simulated devices and input; running them does not record your voice, paste into another application or request a remote refinement.
+
+## Contributing and community
+
+- [Contributing guide](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Bug reports and feature requests](https://github.com/viamus/voice-to-me/issues/new/choose)
+- [Security policy and private vulnerability reporting](SECURITY.md)
+
+## License
+
+Voice to Me is available under the [MIT license](LICENSE). Keep the copyright and license notice when redistributing the software or substantial portions of it.
+
+Dependencies, downloaded speech models and Codex CLI retain their own licenses and terms.

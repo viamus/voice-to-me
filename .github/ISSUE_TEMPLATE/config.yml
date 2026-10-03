@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Troubleshooting
+    url: https://github.com/viamus/voice-to-me/blob/main/docs/troubleshooting.md
+    about: Read setup guidance and solutions for common Windows, transcription and shortcut problems.
+  - name: Report a security vulnerability privately
+    url: https://github.com/viamus/voice-to-me/security/advisories/new
+    about: Share vulnerabilities through private security reporting rather than public issues.

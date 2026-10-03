@@ -1,0 +1,30 @@
+name: Feature request
+description: Suggest an improvement to dictation, accessibility or the Windows workflow.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: Describe the workflow using synthetic examples. Keep private messages, writing styles and credentials out of the request.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What makes the current workflow difficult or incomplete?
+      placeholder: "When using one mouse button to dictate, I need..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposed_behavior
+    attributes:
+      label: Proposed behavior
+      description: What should Voice to Me do, and when?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context and alternatives (optional)
+      description: Add relevant keyboard, mouse, tray or destination-app details, and any alternatives you considered.
+    validations:
+      required: false

@@ -1,0 +1,58 @@
+name: Bug report
+description: Report a problem with recording, transcription, refinement, paste or the Windows tray.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use a synthetic message to reproduce the problem. Remove private conversations, writing styles, usernames and credentials from diagnostics or screenshots.
+        For a security vulnerability, use [private reporting](https://github.com/viamus/voice-to-me/security/advisories/new).
+  - type: input
+    id: app_version
+    attributes:
+      label: Voice to Me version
+      description: Use the release version or the output of `voice-to-me --version`.
+      placeholder: "0.2.1"
+    validations:
+      required: true
+  - type: textarea
+    id: windows_environment
+    attributes:
+      label: Windows environment
+      description: Include your Windows version, setup method, transcription profile and whether Codex refinement is enabled. Add GPU, microphone or mouse details if relevant.
+      placeholder: "Windows 11; setup.bat with uv; Balanced profile; Codex refinement off; recording with Mouse X1."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Describe the shortest repeatable sequence, using synthetic text.
+      placeholder: |
+        1. Open Voice to Me.
+        2. Record "Please move our meeting to ten."
+        3. Finish recording and...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead? Include the visible status or error, if any.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics (optional)
+      description: Relevant debug-run.bat or check output, or a screenshot using synthetic content. Remove private text, writing styles, account details, tokens and identifying paths before sharing.
+    validations:
+      required: false
