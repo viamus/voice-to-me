@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 256" role="img" aria-label="Voice to Me · Your voice. Your words.">
+  <rect width="740" height="256" rx="30" fill="#123B42"/>
+  <g transform="translate(30 30) scale(.765625)">
+    <circle cx="128" cy="120" r="88" fill="#EF896B"/>
+    <path d="M164 179 207 216 199 157Z" fill="#EF896B"/>
+    <g fill="none" stroke="#123B42" stroke-width="15" stroke-linecap="round">
+      <path d="M80 104v32M112 85v70M144 66v108M176 94v52"/>
+    </g>
+  </g>
+  <text x="250" y="134" font-family="Segoe UI, sans-serif" font-size="72" font-weight="700" fill="#FFFFFF">Voice to Me</text>
+  <text x="254" y="178" font-family="Segoe UI, sans-serif" font-size="20" letter-spacing="1" fill="#CBDEDD">YOUR VOICE. YOUR WORDS.</text>
+</svg>

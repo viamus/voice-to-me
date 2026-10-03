@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Voice to Me speech waveform">
+  <rect x="0" y="0" width="256" height="256" rx="58" fill="#123B42"/>
+  <circle cx="128" cy="120" r="88" fill="#EF896B"/>
+  <path d="M164 179 207 216 199 157Z" fill="#EF896B"/>
+  <g fill="none" stroke="#123B42" stroke-width="15" stroke-linecap="round">
+    <path d="M80 104v32M112 85v70M144 66v108M176 94v52"/>
+  </g>
+</svg>

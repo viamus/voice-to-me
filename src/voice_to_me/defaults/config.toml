@@ -1,0 +1,40 @@
+# Voice to Me. Configure shortcuts and writing style in the built-in Settings menu.
+# Save & Apply updates the running app. Manual TOML edits require a restart.
+
+[hotkeys]
+keyboard = "<ctrl>+<alt>+<space>"
+# Optional mouse button: "left", "right", "middle", "x1" or "x2". Empty disables it.
+mouse_button = ""
+# Optional separate shortcut that pastes into the focused app with Ctrl + V.
+paste_keyboard = ""
+paste_mouse_button = ""
+
+[audio]
+# Omit device for the Windows default microphone. Use the devices command to list inputs.
+# device = 1
+sample_rate = 16000
+max_seconds = 180
+minimum_seconds = 0.3
+
+[whisper]
+model = "small"
+language = "pt"
+device = "auto"
+compute_type = "auto"
+beam_size = 1
+# Optional absolute path to a faster-whisper model directory.
+model_directory = ""
+# Model download is an explicit setup step, never an automatic recording action.
+local_files_only = true
+
+[codex]
+# Turn off to copy the local transcription directly without Codex or a writing style.
+enabled = true
+executable = "codex"
+# Empty uses the Codex CLI default model, without loading user config/hooks.
+model = ""
+timeout_seconds = 120
+reasoning_effort = "low"
+
+[profile]
+path = "writing-profile.md"

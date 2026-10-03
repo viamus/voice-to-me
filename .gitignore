@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+*.wav
+!src/voice_to_me/assets/recording-start.wav
+!src/voice_to_me/assets/recording-stop.wav
+!src/voice_to_me/assets/result-ready.wav
+*.log
+.runtime/
